@@ -1,7 +1,11 @@
+#Code based on eriklindernoren "PyTorch-GAN" https://github.com/eriklindernoren/PyTorch-GAN
+# Roy timman 2024
+
 import argparse
 import os
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
@@ -222,7 +226,7 @@ if __name__ == '__main__':
         it+=1
     fig.savefig(f"./plots/DCGANexp{it}.png",dpi=300)
     print(f"plot saved as: DCGANexp{it}.png in plots")
-    
+
     os.makedirs("saved_models", exist_ok=True)
     it = 1
     while(os.path.exists(f"./saved_models/DCGANexpmodel{it}.pth")):
