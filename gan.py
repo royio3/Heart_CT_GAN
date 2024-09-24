@@ -66,37 +66,17 @@ class Discriminator(nn.Module):
         validity = self.model(img_flat)
 
         return validity
+    
 
-if __name__ == '__main__':
-    os.makedirs("images", exist_ok=True)
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-    parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
-    parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate") #0.0002
-    parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
-    parser.add_argument("--img_size", type=int, default=256, help="size of each image dimension")
-    parser.add_argument("--channels", type=int, default=1, help="number of image channels")
-    parser.add_argument("--sample_interval", type=int, default=400, help="interval betwen image samples")
-    opt = parser.parse_args()
-    print(opt)
 
+
+def run_gan(opt):
     img_shape = (opt.channels, opt.img_size, opt.img_size)
 
     # Loss function
     adversarial_loss = torch.nn.BCELoss()
 
-    # Initialize generator and discriminator
-    generator = Generator(img_shape, opt.latent_dim)
-    discriminator = Discriminator(img_shape)
-
-    if cuda:
-        generator.cuda()
-        discriminator.cuda()
-        adversarial_loss.cuda()
-
+    #Change image in to grayscale image
     if opt.channels == 1:    
         transform=transforms.Compose([
             transforms.Grayscale(num_output_channels=1),
@@ -116,6 +96,17 @@ if __name__ == '__main__':
     dataset = datasets.ImageFolder(root='./dataset/', transform=transform)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=True)
 
+    # Initialize generator and discriminator
+    generator = Generator(img_shape, opt.latent_dim)
+    discriminator = Discriminator(img_shape)
+
+    if cuda:
+        generator.cuda()
+        discriminator.cuda()
+        adversarial_loss.cuda()
+
+
+
   # Optimizers
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
@@ -129,10 +120,6 @@ if __name__ == '__main__':
     gen_loss = [0] *opt.n_epochs
     dis_loss = [0] *opt.n_epochs
 
-    fig, ax = plt.subplots()
-    ax.set_xlabel('Epoch') 
-    ax.set_ylabel('Loss')
-    ax.set_title("Discriminator and generator loss per epoch GAN")
     for epoch in range(opt.n_epochs):
         for i, (imgs, _) in enumerate(dataloader):
 
@@ -177,29 +164,19 @@ if __name__ == '__main__':
             d_loss.backward()
             optimizer_D.step()
 
-            print(
-                "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-                % (epoch, opt.n_epochs, i, len(dataloader), d_loss.item(), g_loss.item())
-            )
             dis_loss[epoch] += d_loss.item()
             gen_loss[epoch] += g_loss.item()
 
             batches_done = epoch * len(dataloader) + i
             if batches_done % opt.sample_interval == 0:
                 save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
-  
+        print(
+            "[Epoch %d/%d] [average D loss: %f] [average G loss: %f]"
+            % (epoch, opt.n_epochs, dis_loss[epoch]/len(dataloader), gen_loss[epoch]/len(dataloader))
+        )
     for i in range(opt.n_epochs):
         dis_loss[i] = dis_loss[i]/len(dataloader)
         gen_loss[i] = gen_loss[i]/len(dataloader)
-    ax.plot(dis_loss,label=f"Average Discriminator Loss per epoch")
-    ax.plot(gen_loss,label=f"Average Generator Loss per epoch")
-    ax.legend()
-    it = 1
-    os.makedirs("plots", exist_ok=True)
-    while(os.path.exists(f"./plots/GANexp{it}.png")):
-        it+=1
-    fig.savefig(f"./plots/GANexp{it}.png",dpi=300)
-    print(f"plot saved as: GANexp{it}.png in plots")
 
     it = 1
     os.makedirs("saved_models", exist_ok=True)
@@ -207,3 +184,143 @@ if __name__ == '__main__':
         it+=1
     torch.save(generator.state_dict(), f"./saved_models/GANexpmodel{it}.pth")
     print(f"model saved as: GANexpmodel{it}.pth in saved_models")
+
+    return dis_loss, gen_loss
+
+
+def experiment(opt):
+    print("running experiments...")
+    os.makedirs("plots", exist_ok=True)
+
+    #First the default configuration is run: lr = 0.0002, latent dim = 100, batchsize = 64
+    print("running default configuration : lr = 0.0002, latent dim = 100, batchsize = 64")
+    opt.lr = 0.0002
+    opt.latent_dim = 100
+    opt.batch_size = 64
+    def_dis_loss, def_gen_loss = run_gan(opt) #these results will be used in multiple plots
+
+    #learning rate experiment
+    print("running learning rate experiment")
+    fig_dis, ax_dis = plt.subplots()    
+    ax_dis.set_xlabel('Epoch') 
+    ax_dis.set_ylabel('Discriminator Loss')
+    ax_dis.set_title("Average discriminator loss per epoch GAN using different lr")
+
+    fig_gen, ax_gen = plt.subplots()
+    ax_gen.set_xlabel('Epoch') 
+    ax_gen.set_ylabel('Generator Loss')
+    ax_gen.set_title("Average generator loss per epoch GAN using different lr")
+
+    ax_dis.plot(def_dis_loss,label=f"lr = {opt.lr}")
+    ax_gen.plot(def_gen_loss,label=f"lr = {opt.lr}")
+    
+    lrates = [0.0001, 0.0004]
+
+    for lrate in lrates:
+        print(f"learning rate: {lrate}")
+        opt.lr = lrate
+        dis_loss, gen_loss = run_gan(opt)
+        ax_dis.plot(dis_loss,label=f"lr = {opt.lr}")
+        ax_gen.plot(gen_loss,label=f"lr = {opt.lr}")
+    
+    ax_dis.legend()
+    ax_gen.legend()
+    fig_dis.savefig("./plots/GANexp_dis_lr.png",dpi=300)
+    fig_gen.savefig("./plots/GANexp_gen_lr.png",dpi=300)
+    print(f"plots saved as: GANexp_dis_lr.png and GANexp_gen_lr.png in plots")
+
+    opt.lr = 0.0002 #resets learning ratedo default configuration
+
+    #latent dim experiment
+    print("running latent space dimension experiment")
+    fig_dis, ax_dis = plt.subplots()    
+    ax_dis.set_xlabel('Epoch') 
+    ax_dis.set_ylabel('Discriminator Loss')
+    ax_dis.set_title("Average discriminator loss per epoch GAN using different latent dim")
+
+    fig_gen, ax_gen = plt.subplots()
+    ax_gen.set_xlabel('Epoch') 
+    ax_gen.set_ylabel('Generator Loss')
+    ax_gen.set_title("Average generator loss per epoch GAN using different latent dim")
+
+    ax_dis.plot(def_dis_loss,label=f"latent dim = {opt.latent_dim}")
+    ax_gen.plot(def_gen_loss,label=f"latent dim = {opt.latent_dim}")
+    
+    ldims = [50, 200]
+
+    for ldim in ldims:
+        print(f"latent space dimension: {ldim}")
+        opt.latent_dim = ldim
+        dis_loss, gen_loss = run_gan(opt)
+        ax_dis.plot(dis_loss,label=f"latent dim = {opt.latent_dim}")
+        ax_gen.plot(gen_loss,label=f"latent dim = {opt.latent_dim}")
+    
+    ax_dis.legend()
+    ax_gen.legend()
+    fig_dis.savefig("./plots/GANexp_dis_ldim.png",dpi=300)
+    fig_gen.savefig("./plots/GANexp_gen_ldim.png",dpi=300)
+    print(f"plots saved as: GANexp_dis_ldim.png and GANexp_gen_ldim.png in plots")
+
+    opt.latent_dim = 100 # resets latent dim to default configuration
+
+    #batch size experiment
+    print("running batch size experiment")
+    fig_dis, ax_dis = plt.subplots()    
+    ax_dis.set_xlabel('Epoch') 
+    ax_dis.set_ylabel('Discriminator Loss')
+    ax_dis.set_title("Average discriminator loss per epoch GAN using different batch sizes")
+
+    fig_gen, ax_gen = plt.subplots()
+    ax_gen.set_xlabel('Epoch') 
+    ax_gen.set_ylabel('Generator Loss')
+    ax_gen.set_title("Average generator loss per epoch GAN using different batch sizes")
+
+    ax_dis.plot(def_dis_loss,label=f"batch size = {opt.batch_size}")
+    ax_gen.plot(def_gen_loss,label=f"batch size = {opt.batch_size}")
+    
+    batchsizes = [32, 128]
+
+    for batchsize in batchsizes:
+        print(f"latent space dimension: {batchsize}")
+        opt.batch_size = batchsize
+        dis_loss, gen_loss = run_gan(opt)
+        ax_dis.plot(dis_loss,label=f"batch size = {opt.batch_size}")
+        ax_gen.plot(gen_loss,label=f"batch size = {opt.batch_size}")
+    
+    ax_dis.legend()
+    ax_gen.legend()
+    fig_dis.savefig("./plots/GANexp_dis_bsize.png",dpi=300)
+    fig_gen.savefig("./plots/GANexp_gen_bsize.png",dpi=300)
+    print(f"plots saved as: GANexp_dis_bsize.png and GANexp_gen_bsize.png in plots")
+
+    print("GAN experiments completed!")
+
+
+
+
+
+
+
+
+if __name__ == '__main__':
+    os.makedirs("images", exist_ok=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
+    parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
+    parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate") #0.0002
+    parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
+    parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
+    parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
+    parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
+    parser.add_argument("--img_size", type=int, default=256, help="size of each image dimension")
+    parser.add_argument("--channels", type=int, default=1, help="number of image channels")
+    parser.add_argument("--sample_interval", type=int, default=400, help="interval betwen image samples")
+    parser.add_argument("--experiment", type=bool, default=False, help="Will the thesis experiments be ran?")
+    opt = parser.parse_args()
+    print(opt)
+
+    if experiment:
+        experiment(opt)
+    
+    else:
+        run_gan(opt)
