@@ -328,9 +328,9 @@ if __name__ == '__main__':
     parser.add_argument("--experiment", type=bool, default=False, help="Will the thesis experiments be ran?")
     opt = parser.parse_args()
     print(opt)
-    
+
     if experiment:
         experiment(opt)
     
     else:
-        run_gan(opt)
+        run_dcgan(opt)
