@@ -325,6 +325,12 @@ if __name__ == '__main__':
     parser.add_argument("--img_size", type=int, default=256, help="size of each image dimension")
     parser.add_argument("--channels", type=int, default=1, help="number of image channels")
     parser.add_argument("--sample_interval", type=int, default=400, help="interval between image sampling")
+    parser.add_argument("--experiment", type=bool, default=False, help="Will the thesis experiments be ran?")
     opt = parser.parse_args()
     print(opt)
-
+    
+    if experiment:
+        experiment(opt)
+    
+    else:
+        run_gan(opt)
