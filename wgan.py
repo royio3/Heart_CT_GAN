@@ -217,7 +217,7 @@ def experiment(opt):
     fig_gen.savefig("./plots/WGANexp_gen_lr.png",dpi=300)
     print(f"plots saved as: WGANexp_dis_lr.png and WGANexp_gen_lr.png in plots")
 
-    opt.lr = 0.0002 #resets learning ratedo default configuration
+    opt.lr = 0.00005 #resets learning ratedo default configuration
 
     #latent dim experiment
     print("running latent space dimension experiment")
