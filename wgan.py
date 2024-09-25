@@ -66,24 +66,7 @@ class Discriminator(nn.Module):
         validity = self.model(img_flat)
         return validity
     
-
-if __name__ == '__main__':
-    os.makedirs("images", exist_ok=True)
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
-    parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
-    parser.add_argument("--lr", type=float, default=0.00005, help="learning rate")
-    parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
-    parser.add_argument("--img_size", type=int, default=256, help="size of each image dimension")
-    parser.add_argument("--channels", type=int, default=1, help="number of image channels")
-    parser.add_argument("--n_critic", type=int, default=5, help="number of training steps for discriminator per iter")
-    parser.add_argument("--clip_value", type=float, default=0.01, help="lower and upper clip value for disc. weights")
-    parser.add_argument("--sample_interval", type=int, default=400, help="interval betwen image samples")
-    opt = parser.parse_args()
-    print(opt)
-
+def run_wgan(opt):
     img_shape = (opt.channels, opt.img_size, opt.img_size)
 
 
@@ -124,15 +107,13 @@ if __name__ == '__main__':
     #  Training
     # ----------
     gen_loss = [0] *opt.n_epochs
-    dis_loss = [0] *opt.n_epochs
 
-    fig, ax = plt.subplots()
-    ax.set_xlabel('Epoch') 
-    ax.set_ylabel('Loss')
-    ax.set_title("Discriminator and generator loss per epoch WGAN")
+    #counts number of times generator has been updated for every epoch since it only updates after n_critic times
+    number_gen_updates= [0] * opt.n_epochs 
+
+    dis_loss = [0] *opt.n_epochs
     batches_done = 0
     for epoch in range(opt.n_epochs):
-
         for i, (imgs, _) in enumerate(dataloader):
 
             # Configure input
@@ -150,8 +131,8 @@ if __name__ == '__main__':
             fake_imgs = generator(z).detach()
             # Adversarial loss
             loss_D = -torch.mean(discriminator(real_imgs)) + torch.mean(discriminator(fake_imgs))
-
             loss_D.backward()
+            dis_loss[epoch] += loss_D.item()
             optimizer_D.step()
 
             # Clip weights of discriminator
@@ -173,36 +154,155 @@ if __name__ == '__main__':
                 loss_G = -torch.mean(discriminator(gen_imgs))
 
                 loss_G.backward()
-                optimizer_G.step()
-
-                print(
-                    "[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]"
-                    % (epoch, opt.n_epochs, batches_done % len(dataloader), len(dataloader), loss_D.item(), loss_G.item())
-                )
-
-                dis_loss[epoch] += loss_D.item()
+                optimizer_G.step() 
                 gen_loss[epoch] += loss_G.item()
+                number_gen_updates[epoch] += 1
 
             batches_done = epoch * len(dataloader) + i    
             if batches_done % opt.sample_interval == 0:
                 save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
 
+        print(
+            "[Epoch %d/%d] [average D loss: %f] [average G loss: %f]"
+            % (epoch, opt.n_epochs, dis_loss[epoch]/len(dataloader), gen_loss[epoch]/number_gen_updates[epoch])
+        )
     for i in range(opt.n_epochs):
         dis_loss[i] = dis_loss[i]/len(dataloader)
-        gen_loss[i] = gen_loss[i]/len(dataloader)
-    ax.plot(dis_loss,label=f"Average Discriminator Loss per epoch")
-    ax.plot(gen_loss,label=f"Average Generator Loss per epoch")
-    ax.legend()
-    it = 1
-    os.makedirs("plots", exist_ok=True)
-    while(os.path.exists(f"./plots/WGANexp{it}.png")):
-        it+=1
-    fig.savefig(f"./plots/WGANexp{it}.png",dpi=300)
-    print(f"plot saved as: WGANexp{it}.png in plots")
-
+        gen_loss[i] = gen_loss[i]/number_gen_updates[epoch]
     it = 1
     os.makedirs("saved_models", exist_ok=True)
     while(os.path.exists(f"./saved_models/WGANexpmodel{it}.pth")):
         it+=1
     torch.save(generator.state_dict(), f"./saved_models/WGANexpmodel{it}.pth")
     print(f"model saved as: WGANexpmodel{it}.pth in saved_models")
+
+def experiment(opt):
+    print("running experiments...")
+    os.makedirs("plots", exist_ok=True)
+
+    #First the default configuration is run: lr = 0.00005, latent dim = 100, batchsize = 64
+    print("running default configuration : lr = 0.00005, latent dim = 100, batchsize = 64")
+    opt.lr = 0.00005
+    opt.latent_dim = 100
+    opt.batch_size = 64
+    def_dis_loss, def_gen_loss = run_wgan(opt) #these results will be used in multiple plots
+
+    #learning rate experiment
+    print("running learning rate experiment")
+    fig_dis, ax_dis = plt.subplots()    
+    ax_dis.set_xlabel('Epoch') 
+    ax_dis.set_ylabel('Discriminator Loss')
+    ax_dis.set_title("Average discriminator loss per epoch WGAN using different lr")
+
+    fig_gen, ax_gen = plt.subplots()
+    ax_gen.set_xlabel('Epoch') 
+    ax_gen.set_ylabel('Generator Loss')
+    ax_gen.set_title("Average generator loss per epoch WGAN using different lr")
+
+    ax_dis.plot(def_dis_loss,label=f"lr = {opt.lr}")
+    ax_gen.plot(def_gen_loss,label=f"lr = {opt.lr}")
+    
+    lrates = [0.000025, 0.0001]
+
+    for lrate in lrates:
+        print(f"learning rate: {lrate}")
+        opt.lr = lrate
+        dis_loss, gen_loss = run_wgan(opt)
+        ax_dis.plot(dis_loss,label=f"lr = {opt.lr}")
+        ax_gen.plot(gen_loss,label=f"lr = {opt.lr}")
+    
+    ax_dis.legend()
+    ax_gen.legend()
+    fig_dis.savefig("./plots/WGANexp_dis_lr.png",dpi=300)
+    fig_gen.savefig("./plots/WGANexp_gen_lr.png",dpi=300)
+    print(f"plots saved as: WGANexp_dis_lr.png and WGANexp_gen_lr.png in plots")
+
+    opt.lr = 0.0002 #resets learning ratedo default configuration
+
+    #latent dim experiment
+    print("running latent space dimension experiment")
+    fig_dis, ax_dis = plt.subplots()    
+    ax_dis.set_xlabel('Epoch') 
+    ax_dis.set_ylabel('Discriminator Loss')
+    ax_dis.set_title("Average discriminator loss per epoch WGAN using different latent dim")
+
+    fig_gen, ax_gen = plt.subplots()
+    ax_gen.set_xlabel('Epoch') 
+    ax_gen.set_ylabel('Generator Loss')
+    ax_gen.set_title("Average generator loss per epoch WGAN using different latent dim")
+
+    ax_dis.plot(def_dis_loss,label=f"latent dim = {opt.latent_dim}")
+    ax_gen.plot(def_gen_loss,label=f"latent dim = {opt.latent_dim}")
+    
+    ldims = [50, 200]
+
+    for ldim in ldims:
+        print(f"latent space dimension: {ldim}")
+        opt.latent_dim = ldim
+        dis_loss, gen_loss = run_wgan(opt)
+        ax_dis.plot(dis_loss,label=f"latent dim = {opt.latent_dim}")
+        ax_gen.plot(gen_loss,label=f"latent dim = {opt.latent_dim}")
+    
+    ax_dis.legend()
+    ax_gen.legend()
+    fig_dis.savefig("./plots/WGANexp_dis_ldim.png",dpi=300)
+    fig_gen.savefig("./plots/WGANexp_gen_ldim.png",dpi=300)
+    print(f"plots saved as: WGANexp_dis_ldim.png and WGANexp_gen_ldim.png in plots")
+
+    opt.latent_dim = 100 # resets latent dim to default configuration
+
+    #batch size experiment
+    print("running batch size experiment")
+    fig_dis, ax_dis = plt.subplots()    
+    ax_dis.set_xlabel('Epoch') 
+    ax_dis.set_ylabel('Discriminator Loss')
+    ax_dis.set_title("Average discriminator loss per epoch WGAN using different batch sizes")
+
+    fig_gen, ax_gen = plt.subplots()
+    ax_gen.set_xlabel('Epoch') 
+    ax_gen.set_ylabel('Generator Loss')
+    ax_gen.set_title("Average generator loss per epoch WGAN using different batch sizes")
+
+    ax_dis.plot(def_dis_loss,label=f"batch size = {opt.batch_size}")
+    ax_gen.plot(def_gen_loss,label=f"batch size = {opt.batch_size}")
+    
+    batchsizes = [32, 128]
+
+    for batchsize in batchsizes:
+        print(f"batch size: {batchsize}")
+        opt.batch_size = batchsize
+        dis_loss, gen_loss = run_wgan(opt)
+        ax_dis.plot(dis_loss,label=f"batch size = {opt.batch_size}")
+        ax_gen.plot(gen_loss,label=f"batch size = {opt.batch_size}")
+    
+    ax_dis.legend()
+    ax_gen.legend()
+    fig_dis.savefig("./plots/WGANexp_dis_bsize.png",dpi=300)
+    fig_gen.savefig("./plots/WGANexp_gen_bsize.png",dpi=300)
+    print(f"plots saved as: WGANexp_dis_bsize.png and WGANexp_gen_bsize.png in plots")
+
+    print("WGAN experiments completed!")
+
+if __name__ == '__main__':
+    os.makedirs("images", exist_ok=True)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--n_epochs", type=int, default=200, help="number of epochs of training")
+    parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
+    parser.add_argument("--lr", type=float, default=0.00005, help="learning rate")
+    parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
+    parser.add_argument("--latent_dim", type=int, default=100, help="dimensionality of the latent space")
+    parser.add_argument("--img_size", type=int, default=256, help="size of each image dimension")
+    parser.add_argument("--channels", type=int, default=1, help="number of image channels")
+    parser.add_argument("--n_critic", type=int, default=5, help="number of training steps for discriminator per iter")
+    parser.add_argument("--clip_value", type=float, default=0.01, help="lower and upper clip value for disc. weights")
+    parser.add_argument("--sample_interval", type=int, default=400, help="interval between image samples")
+    parser.add_argument("--experiment", type=bool, default=False, help="Will the thesis experiments be ran?")
+    opt = parser.parse_args()
+    print(opt)
+
+    if experiment:
+        experiment(opt)
+
+    else:
+        run_wgan(opt)
