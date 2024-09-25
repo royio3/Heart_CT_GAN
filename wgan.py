@@ -175,6 +175,7 @@ def run_wgan(opt):
         it+=1
     torch.save(generator.state_dict(), f"./saved_models/WGANexpmodel{it}.pth")
     print(f"model saved as: WGANexpmodel{it}.pth in saved_models")
+    return dis_loss, gen_loss
 
 def experiment(opt):
     print("running experiments...")
