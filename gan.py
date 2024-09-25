@@ -281,7 +281,7 @@ def experiment(opt):
     batchsizes = [32, 128]
 
     for batchsize in batchsizes:
-        print(f"latent space dimension: {batchsize}")
+        print(f"batch size: {batchsize}")
         opt.batch_size = batchsize
         dis_loss, gen_loss = run_gan(opt)
         ax_dis.plot(dis_loss,label=f"batch size = {opt.batch_size}")
