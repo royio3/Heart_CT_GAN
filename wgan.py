@@ -1,5 +1,10 @@
-#Code based on eriklindernoren "PyTorch-GAN" https://github.com/eriklindernoren/PyTorch-GAN
-# Roy timman 2024
+"""
+The modified Code is based on:
+*Title: PyTorch-GAN/WGAN
+*Author: Erik Linder-Norén
+*Date: 2018
+*Availability: https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/wgan/wgan.py
+"""
 import argparse
 import os
 import numpy as np

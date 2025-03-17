@@ -1,6 +1,10 @@
-#Code based on eriklindernoren "PyTorch-GAN" https://github.com/eriklindernoren/PyTorch-GAN
-# Roy timman 2024
-
+"""
+The modified Code is based on:
+*Title: PyTorch-GAN/DCGAN
+*Author: Erik Linder-Norén
+*Date: 2018
+*Availability: https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/dcgan/dcgan.py
+"""
 import argparse
 import os
 import numpy as np
@@ -294,7 +298,7 @@ def experiment(opt):
     ax_dis.plot(def_dis_loss,label=f"batch size = {opt.batch_size}")
     ax_gen.plot(def_gen_loss,label=f"batch size = {opt.batch_size}")
     
-    batchsizes = [32, 128]
+    batchsizes = [16, 32]
 
     for batchsize in batchsizes:
         print(f"batch size: {batchsize}")
@@ -329,7 +333,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     print(opt)
 
-    if experiment:
+    if opt.experiment:
         experiment(opt)
     
     else:
