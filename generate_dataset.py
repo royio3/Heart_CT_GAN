@@ -1,10 +1,16 @@
+"""
+Small parts of the code are based of on
+*Title: PyTorch-GAN
+*Author: Erik Linder-Norén
+*Date: 2018
+*Availability: https://github.com/eriklindernoren/PyTorch-GAN/
+"""
 import argparse
 import torch
 from torchvision.utils import save_image
 from torch.autograd import Variable
 import numpy as np
 import os
-from wgan import Generator 
 
 cuda = True if torch.cuda.is_available() else False
 
@@ -21,6 +27,16 @@ img_shape = (opt.channels, opt.img_size, opt.img_size)
 if not os.path.exists(f"./saved_models/{opt.modelname}"):
     print("Error model does not exist in saved_model")
     exit(-1)
+if opt.modelname.startswith("DCGAN"):
+    from dcgan import Generator
+    print("DCGAN model found")
+
+elif opt.modelname.startswith("WGAN"):
+    from wgan import Generator
+    print("WGAN model found")
+else:
+    from gan import Generator
+    print("GAN model found")
 
 generator = Generator(img_shape, opt.latent_dim)
 
@@ -44,7 +60,6 @@ for i in range(opt.generate_img):
 
 
     gen_img = generator(z)
-    #save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
     if opt.image_name == "":
         save_image(gen_img.data, f"./generated_images/fake_image_{i}.png", normalize=True)
     else:
