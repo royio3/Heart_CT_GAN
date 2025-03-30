@@ -319,7 +319,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     print(opt)
 
-    if experiment:
+    if opt.experiment:
         experiment(opt)
     
     else:
